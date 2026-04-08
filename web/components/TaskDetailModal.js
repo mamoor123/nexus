@@ -5,8 +5,10 @@ import { api } from '../lib/api';
 export default function TaskDetailModal({ taskId, onClose, onUpdate }) {
   const [task, setTask] = useState(null);
   const [comments, setComments] = useState([]);
+  const [uploads, setUploads] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!taskId) return;
@@ -14,9 +16,11 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }) {
     Promise.all([
       api.getTask(taskId),
       api.getTaskComments(taskId),
-    ]).then(([t, c]) => {
+      api.getTaskUploads(taskId).catch(() => []),
+    ]).then(([t, c, u]) => {
       setTask(t);
       setComments(c);
+      setUploads(u);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [taskId]);
@@ -45,6 +49,32 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }) {
       const c = await api.getTaskComments(taskId);
       setComments(c);
     } catch (err) { console.error(err); }
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const uploaded = await api.uploadFile(file, taskId);
+      setUploads(prev => [uploaded, ...prev]);
+    } catch (err) { console.error(err); }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const handleDeleteUpload = async (id) => {
+    if (!confirm('Delete this file?')) return;
+    try {
+      await api.deleteUpload(id);
+      setUploads(prev => prev.filter(u => u.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  const formatSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   if (!taskId) return null;
@@ -160,8 +190,45 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }) {
           </div>
         )}
 
-        {/* Comments */}
+        {/* Comments & Attachments */}
         <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+          {/* Attachments */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Attachments ({uploads.length})
+              </h3>
+              <label style={{
+                fontSize: '0.75rem', color: '#6366f1', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                {uploading ? 'Uploading...' : '📎 Add file'}
+                <input type="file" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
+              </label>
+            </div>
+            {uploads.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {uploads.map(u => (
+                  <div key={u.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'var(--surface-2)', padding: '4px 8px', borderRadius: 6,
+                    fontSize: '0.75rem',
+                  }}>
+                    <a href={api.getUploadUrl(u.id)} target="_blank" rel="noopener noreferrer"
+                      style={{ color: '#6366f1', textDecoration: 'none', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      📎 {u.original_name}
+                    </a>
+                    <span style={{ color: 'var(--text-muted)' }}>{formatSize(u.size)}</span>
+                    <button onClick={() => handleDeleteUpload(u.id)} style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: '0.7rem', padding: 0,
+                    }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <h3 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)' }}>
             Activity ({comments.length})
           </h3>

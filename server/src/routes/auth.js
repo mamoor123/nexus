@@ -88,4 +88,66 @@ router.get('/', authMiddleware, (req, res) => {
   res.json(users);
 });
 
+// Update profile
+router.put('/profile', authMiddleware, sanitizeBody(['name']), (req, res) => {
+  try {
+    const { name, department_id, avatar_url } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+    if (department_id !== undefined) { updates.push('department_id = ?'); params.push(department_id || null); }
+    if (avatar_url !== undefined) { updates.push('avatar_url = ?'); params.push(avatar_url); }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(req.user.id);
+
+    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+    const user = db.prepare('SELECT id, email, name, role, department_id, avatar_url, created_at FROM users WHERE id = ?').get(req.user.id);
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Change password
+router.post('/change-password', authMiddleware, validateBody(['current_password', 'new_password']), (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!bcrypt.compareSync(current_password, user.password_hash)) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const password_hash = bcrypt.hashSync(new_password, 10);
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(password_hash, req.user.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update user role (admin only)
+router.put('/:id/role', authMiddleware, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const { role } = req.body;
+  if (!['admin', 'manager', 'member'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+
+  db.prepare('UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(role, req.params.id);
+  const user = db.prepare('SELECT id, email, name, role, department_id, avatar_url, created_at FROM users WHERE id = ?').get(req.params.id);
+  res.json(user);
+});
+
 module.exports = router;

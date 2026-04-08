@@ -53,6 +53,7 @@ function Sidebar() {
     { href: '/email', label: 'Email', icon: '📧' },
     { href: '/workflows', label: 'Workflows', icon: '⚡' },
     { href: '/analytics', label: 'Analytics', icon: '📈' },
+    { href: '/settings', label: 'Settings', icon: '⚙️' },
   ];
 
   return (

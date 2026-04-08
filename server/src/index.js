@@ -33,6 +33,7 @@ app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/email', require('./routes/email'));
 app.use('/api/workflows', require('./routes/workflows'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/uploads', require('./routes/uploads'));
 
 // Health check
 app.get('/api/health', (req, res) => {

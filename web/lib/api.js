@@ -19,6 +19,36 @@ export const api = {
   register: (data) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   me: () => request('/api/auth/me'),
   getUsers: () => request('/api/auth'),
+  updateProfile: (data) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  changePassword: (data) => request('/api/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
+  updateUserRole: (id, role) => request(`/api/auth/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+
+  // Uploads
+  uploadFile: async (file, taskId = null) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const formData = new FormData();
+    formData.append('file', file);
+    if (taskId) formData.append('task_id', taskId);
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${API_URL}/api/uploads`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Upload failed');
+    }
+    return res.json();
+  },
+  getTaskUploads: (taskId) => request(`/api/uploads/task/${taskId}`),
+  deleteUpload: (id) => request(`/api/uploads/${id}`, { method: 'DELETE' }),
+  getUploadUrl: (id) => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    return `${API_URL}/api/uploads/${id}/download?token=${token}`;
+  },
 
   // Dashboard
   getDashboard: () => request('/api/dashboard'),

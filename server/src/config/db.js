@@ -165,6 +165,20 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read, created_at);
+
+  CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    uploaded_by INTEGER NOT NULL,
+    task_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+  );
 `);
 
 module.exports = db;
