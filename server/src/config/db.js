@@ -155,6 +155,27 @@ function createPgAdapter() {
     return params;
   }
 
+  /**
+   * Coerce bigint-as-string values to JS numbers so callers
+   * never need to worry about PG returning COUNT(*) as "42".
+   */
+  function coerceRow(row) {
+    if (!row) return row;
+    for (const key of Object.keys(row)) {
+      const val = row[key];
+      if (typeof val === 'string' && /^\d+$/.test(val)) {
+        const n = Number(val);
+        if (n <= Number.MAX_SAFE_INTEGER) row[key] = n;
+      }
+    }
+    return row;
+  }
+
+  function coerceRows(rows) {
+    for (const row of rows) coerceRow(row);
+    return rows;
+  }
+
   function maybeAddReturning(sql) {
     const trimmed = sql.trim();
     if (/^\s*INSERT\s/i.test(trimmed) && !/\bRETURNING\b/i.test(trimmed)) {
@@ -179,11 +200,11 @@ function createPgAdapter() {
       },
       get(...params) {
         const convertedParams = convertParams(params, namedParams, sql);
-        return pool.query(transformedSql, convertedParams).then(r => r.rows[0] || undefined);
+        return pool.query(transformedSql, convertedParams).then(r => coerceRow(r.rows[0]) || undefined);
       },
       all(...params) {
         const convertedParams = convertParams(params, namedParams, sql);
-        return pool.query(transformedSql, convertedParams).then(r => r.rows);
+        return pool.query(transformedSql, convertedParams).then(r => coerceRows(r.rows));
       },
     };
   }
