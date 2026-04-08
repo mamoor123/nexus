@@ -1,0 +1,15 @@
+{
+  "name": "company-os",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "cd web && npm run build",
+    "start": "docker-compose up --build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

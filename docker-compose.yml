@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  server:
+    build: ./server
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - DB_PATH=/data/company-os.db
+      - PORT=3001
+    volumes:
+      - db-data:/data
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  db-data:

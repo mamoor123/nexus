@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface-2: #1a1a26;
+  --border: #2a2a3a;
+  --text: #e4e4ed;
+  --text-muted: #8888a0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Glassmorphism card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.card:hover {
+  border-color: #3a3a50;
+}
+
+/* Input styles */
+input, textarea, select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: #6366f1;
+}
+
+/* Button */
+.btn {
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover { background: #4f46e5; }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-ghost:hover { background: var(--surface-2); }
+
+.btn-danger {
+  background: #ef4444;
+}
+
+.btn-danger:hover { background: #dc2626; }
+
+/* Status badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-pending { background: #1e293b; color: #94a3b8; }
+.badge-in_progress { background: #172554; color: #60a5fa; }
+.badge-review { background: #1e1b4b; color: #a78bfa; }
+.badge-completed { background: #052e16; color: #4ade80; }
+.badge-blocked { background: #450a0a; color: #f87171; }
+
+.badge-urgent { background: #450a0a; color: #f87171; }
+.badge-high { background: #431407; color: #fb923c; }
+.badge-medium { background: #1e293b; color: #94a3b8; }
+.badge-low { background: #052e16; color: #4ade80; }
