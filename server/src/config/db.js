@@ -17,6 +17,9 @@
  * Use `await` in handlers — it works on both sync values and Promises.
  *
  * Auto-converts ? → $1,$2 for PG.
+ * Auto-converts @param → $1,$2 for PG (better-sqlite3 named params).
+ * Auto-quotes reserved words (trigger).
+ * Auto-converts boolean comparisons (read = 0 → read = false) for PG.
  * Auto-appends RETURNING id to INSERT queries for lastInsertRowid.
  */
 
@@ -38,9 +41,127 @@ function createPgAdapter() {
   pool.on('error', (err) => console.error('PG pool error:', err.message));
   console.log('🐘 PostgreSQL adapter initialized');
 
-  function convertPlaceholders(sql) {
-    let i = 0;
-    return sql.replace(/\?/g, () => `$${++i}`);
+  /**
+   * Transform SQL for PostgreSQL compatibility:
+   * 1. Quote reserved word "trigger" as "trigger"
+   * 2. Convert @named params to $1, $2 (better-sqlite3 → pg)
+   * 3. Convert ? positional params to $1, $2
+   * 4. Convert integer boolean comparisons (= 0 / = 1) to (= false / = true)
+   */
+  function transformForPg(sql) {
+    let result = sql;
+
+    // 1. Quote reserved word "trigger" — but not inside string literals
+    //    Match trigger as a column name (word boundary, not in quotes)
+    result = result.replace(/\btrigger\b/g, (match, offset) => {
+      // Check if inside single quotes
+      const before = result.substring(0, offset);
+      const openQuotes = (before.match(/'/g) || []).length;
+      if (openQuotes % 2 === 1) return match; // inside string literal
+      return '"trigger"';
+    });
+
+    // 2. Convert @named parameters to $1, $2
+    const namedParams = [];
+    result = result.replace(/@(\w+)/g, (match, name) => {
+      const idx = namedParams.indexOf(name);
+      if (idx === -1) {
+        namedParams.push(name);
+        return `$${namedParams.length}`;
+      }
+      return `$${idx + 1}`;
+    });
+
+    // 3. Convert ? to $1, $2 (only if no $ params exist yet)
+    if (!result.includes('$1')) {
+      let i = 0;
+      result = result.replace(/\?/g, () => `$${++i}`);
+    }
+
+    // 4. Convert integer boolean comparisons for known boolean columns
+    //    Handles: column = 0, column = 1 patterns
+    const booleanCols = ['read', 'starred', 'enabled'];
+    for (const col of booleanCols) {
+      // "= 0" → "= false", "= 1" → "= true"
+      result = result.replace(
+        new RegExp(`\\b${col}\\s*=\\s*0\\b`, 'gi'),
+        `${col} = false`
+      );
+      result = result.replace(
+        new RegExp(`\\b${col}\\s*=\\s*1\\b`, 'gi'),
+        `${col} = true`
+      );
+    }
+
+    return { sql: result, namedParams };
+  }
+
+  /**
+   * Convert positional or named params to plain array.
+   * Also converts integer 0/1 to boolean true/false for known boolean columns.
+   */
+  function convertParams(params, namedParams, sql) {
+    if (namedParams.length > 0 && params.length === 1 && typeof params[0] === 'object' && params[0] !== null) {
+      // Named params: { name: 'foo', enabled: 1 } → ['foo', true]
+      const booleanCols = ['read', 'starred', 'enabled'];
+      return namedParams.map(name => {
+        const val = params[0][name];
+        if (booleanCols.includes(name) && (val === 0 || val === 1)) {
+          return val === 1;
+        }
+        return val;
+      });
+    }
+    // Positional params — convert 0/1 to boolean for boolean columns
+    const booleanCols = ['read', 'starred', 'enabled'];
+    const insertBoolCols = ['read', 'starred', 'enabled'];
+    const isInsert = /^\s*INSERT/i.test(sql);
+
+    // For INSERT, try to detect which params map to boolean columns
+    if (isInsert) {
+      const colMatch = sql.match(/INSERT\s+INTO\s+\w+\s*\(([^)]+)\)/i);
+      if (colMatch) {
+        const cols = colMatch[1].split(',').map(c => c.trim().replace(/"/g, ''));
+        return params.map((val, i) => {
+          const col = cols[i];
+          if (col && insertBoolCols.includes(col) && (val === 0 || val === 1)) {
+            return val === 1;
+          }
+          return val;
+        });
+      }
+    }
+
+    // For UPDATE SET, detect boolean column assignments
+    if (/^\s*UPDATE/i.test(sql)) {
+      const setMatch = sql.match(/SET\s+(.+?)(?:\s+WHERE|$)/is);
+      if (setMatch) {
+        const assignments = setMatch[1].split(',').map(a => a.trim());
+        let paramIdx = 0;
+        const converted = [];
+        for (const assignment of assignments) {
+          const colName = assignment.split('=')[0]?.trim().replace(/"/g, '');
+          const hasPlaceholder = /[=$]\s*\$\d+/.test(assignment) || /[=$]\s*\?/.test(assignment);
+          if (hasPlaceholder && paramIdx < params.length) {
+            const val = params[paramIdx];
+            if (colName && booleanCols.includes(colName) && (val === 0 || val === 1)) {
+              converted.push(val === 1);
+            } else {
+              converted.push(val);
+            }
+            paramIdx++;
+          }
+        }
+        // Add remaining params (WHERE clause, etc.)
+        while (paramIdx < params.length) {
+          converted.push(params[paramIdx]);
+          paramIdx++;
+        }
+        return converted;
+      }
+    }
+
+    return params;
   }
 
   function maybeAddReturning(sql) {
@@ -52,19 +173,24 @@ function createPgAdapter() {
   }
 
   function prepare(sql) {
+    const { sql: transformedSql, namedParams } = transformForPg(sql);
+
     return {
       run(...params) {
-        const finalSql = convertPlaceholders(maybeAddReturning(sql));
-        return pool.query(finalSql, params).then(result => ({
+        const finalSql = transformForPg(maybeAddReturning(sql)).sql;
+        const convertedParams = convertParams(params, namedParams, sql);
+        return pool.query(finalSql, convertedParams).then(result => ({
           changes: result.rowCount,
           lastInsertRowid: result.rows[0]?.id !== undefined ? Number(result.rows[0].id) : undefined,
         }));
       },
       get(...params) {
-        return pool.query(convertPlaceholders(sql), params).then(r => r.rows[0] || undefined);
+        const convertedParams = convertParams(params, namedParams, sql);
+        return pool.query(transformedSql, convertedParams).then(r => r.rows[0] || undefined);
       },
       all(...params) {
-        return pool.query(convertPlaceholders(sql), params).then(r => r.rows);
+        const convertedParams = convertParams(params, namedParams, sql);
+        return pool.query(transformedSql, convertedParams).then(r => r.rows);
       },
     };
   }
@@ -75,7 +201,10 @@ function createPgAdapter() {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        for (const stmt of statements) await client.query(stmt);
+        for (const stmt of statements) {
+          const { sql: transformed } = transformForPg(stmt);
+          await client.query(transformed);
+        }
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');

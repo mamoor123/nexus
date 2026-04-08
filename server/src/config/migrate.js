@@ -279,7 +279,7 @@ const migrations = [
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT DEFAULT '',
-        trigger TEXT NOT NULL,
+        "trigger" TEXT NOT NULL,
         conditions JSONB DEFAULT '[]',
         actions JSONB DEFAULT '[]',
         enabled BOOLEAN DEFAULT true,
@@ -292,7 +292,7 @@ const migrations = [
       CREATE TABLE IF NOT EXISTS workflow_logs (
         id SERIAL PRIMARY KEY,
         workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-        trigger TEXT NOT NULL,
+        "trigger" TEXT NOT NULL,
         context JSONB DEFAULT '{}',
         results JSONB DEFAULT '[]',
         created_at TIMESTAMPTZ DEFAULT NOW()
