@@ -34,6 +34,7 @@ app.use('/api/email', require('./routes/email'));
 app.use('/api/workflows', require('./routes/workflows'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/uploads', require('./routes/uploads'));
+app.use('/api/system', require('./routes/system'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -174,11 +175,21 @@ seedDefaults();
 // Initialize notification service with Socket.IO
 notificationService.setIO(io);
 
+// Start background services
+const executionLoop = require('./services/execution-loop');
+const scheduler = require('./services/scheduler');
+
 server.listen(PORT, () => {
   console.log(`
   ╔══════════════════════════════════════╗
-  ║     🏢 Company OS Server v0.1.0     ║
+  ║     🏢 Company OS Server v0.2.0     ║
   ║     Running on port ${PORT}            ║
   ╚══════════════════════════════════════╝
   `);
+
+  // Start agent execution loop
+  executionLoop.start();
+
+  // Start cron scheduler
+  scheduler.start();
 });

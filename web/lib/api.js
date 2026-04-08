@@ -50,6 +50,17 @@ export const api = {
     return `${API_URL}/api/uploads/${id}/download?token=${token}`;
   },
 
+  // System (admin)
+  getSystemStatus: () => request('/api/system/status'),
+  testLLM: (data) => request('/api/system/test-llm', { method: 'POST', body: JSON.stringify(data || {}) }),
+  toggleExecutionLoop: () => request('/api/system/execution-loop/toggle', { method: 'POST' }),
+  runExecutionLoop: () => request('/api/system/execution-loop/run', { method: 'POST' }),
+  getSchedules: () => request('/api/system/schedules'),
+  createSchedule: (data) => request('/api/system/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id, data) => request(`/api/system/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSchedule: (id) => request(`/api/system/schedules/${id}`, { method: 'DELETE' }),
+  toggleSchedule: (id) => request(`/api/system/schedules/${id}/toggle`, { method: 'POST' }),
+
   // Dashboard
   getDashboard: () => request('/api/dashboard'),
   getActivity: (days = 7) => request(`/api/dashboard/activity?days=${days}`),
